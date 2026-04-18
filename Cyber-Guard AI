@@ -1,0 +1,360 @@
+import { useState, useEffect, useCallback } from 'react';
+import { Threat, Alert, NetworkNode } from '@/types/security';
+import { mockHealingLogs, calculateRiskScore } from '@/data/mockData';
+import { RiskScoreGauge } from '@/components/RiskScoreGauge';
+import { ThreatList } from '@/components/ThreatList';
+import { ThreatDetail } from '@/components/ThreatDetail';
+import { HealingLogs } from '@/components/HealingLogs';
+import { NetworkTopology } from '@/components/NetworkTopology';
+
+import { AlertNotifications } from '@/components/AlertNotifications';
+import { StatsCards } from '@/components/StatsCards';
+import { NetworkScanner, ScannedDevice, DetectedThreat } from '@/components/NetworkScanner';
+import { Shield, Activity, Zap } from 'lucide-react';
+import { toast } from 'sonner';
+
+const Index = () => {
+  const [threats, setThreats] = useState<Threat[]>([]);
+  const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [riskScore, setRiskScore] = useState(0);
+  const [networkNodes, setNetworkNodes] = useState<NetworkNode[]>([]);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [hasScanned, setHasScanned] = useState(false);
+  const [healingLogs, setHealingLogs] = useState(mockHealingLogs);
+
+  // Calculate risk score based on threats
+  useEffect(() => {
+    if (threats.length === 0) {
+      setRiskScore(0);
+      return;
+    }
+    
+    const targetScore = calculateRiskScore(threats);
+    const duration = 800;
+    const startTime = Date.now();
+    const startScore = riskScore;
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      setRiskScore(Math.round(startScore + (targetScore - startScore) * easeOut));
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }, [threats]);
+
+  // Simulate real-time healing progress
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setThreats(prev => prev.map(threat => {
+        if (threat.status === 'healing' && threat.healingProgress !== undefined && threat.healingProgress < 100) {
+          const newProgress = Math.min(threat.healingProgress + Math.random() * 5, 100);
+          if (newProgress >= 100) {
+            toast.success(`Threat "${threat.name}" has been resolved!`);
+            addAlert({
+              type: 'healing',
+              title: 'Threat Resolved',
+              message: `${threat.name} has been successfully remediated.`,
+            });
+          }
+          return {
+            ...threat,
+            healingProgress: newProgress,
+            status: newProgress >= 100 ? 'resolved' : 'healing',
+          };
+        }
+        return threat;
+      }));
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const addAlert = (alert: Omit<Alert, 'id' | 'timestamp' | 'read'>) => {
+    const newAlert: Alert = {
+      id: `alert-${Date.now()}`,
+      ...alert,
+      timestamp: new Date(),
+      read: false,
+    };
+    setAlerts(prev => [newAlert, ...prev]);
+  };
+
+  const handleDeviceFound = useCallback((device: ScannedDevice) => {
+    const nodeTypes: Record<ScannedDevice['type'], NetworkNode['type']> = {
+      server: 'server',
+      endpoint: 'endpoint',
+      router: 'router',
+      database: 'database',
+      iot: 'endpoint',
+    };
+
+    const nodeStatuses: Record<ScannedDevice['status'], NetworkNode['status']> = {
+      healthy: 'healthy',
+      warning: 'warning',
+      critical: 'critical',
+    };
+
+    // Calculate position in a spiral pattern
+    setNetworkNodes(prev => {
+      const index = prev.length;
+      const angle = (index / 10) * Math.PI * 2;
+      const radius = 15 + (index % 3) * 15;
+      const centerX = 50;
+      const centerY = 50;
+      
+      const newNode: NetworkNode = {
+        id: device.id,
+        name: device.name,
+        type: nodeTypes[device.type],
+        status: nodeStatuses[device.status],
+        connections: prev.length > 0 ? [prev[Math.max(0, prev.length - 1)].id] : [],
+        position: {
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius,
+        },
+      };
+
+      // Connect to router if exists
+      const router = prev.find(n => n.type === 'router');
+      if (router && device.type !== 'router') {
+        newNode.connections = [router.id];
+      }
+
+      return [...prev, newNode];
+    });
+  }, []);
+
+  const handleThreatDetected = useCallback((threat: DetectedThreat) => {
+    const newThreat: Threat = {
+      id: threat.id,
+      name: threat.name,
+      type: threat.type,
+      severity: threat.severity,
+      status: 'active',
+      source: threat.source,
+      target: threat.target,
+      timestamp: threat.timestamp,
+      description: threat.description,
+      aiAnalysis: `AI Analysis: ${threat.description} Recommended action: Isolate and initiate self-healing protocol.`,
+    };
+
+    setThreats(prev => [newThreat, ...prev]);
+    
+    // Show toast for critical/high threats
+    if (threat.severity === 'critical' || threat.severity === 'high') {
+      toast.error(`${threat.severity.toUpperCase()} threat detected: ${threat.name}`, {
+        description: `Target: ${threat.target}`,
+      });
+    }
+
+    addAlert({
+      type: 'threat',
+      title: `${threat.severity.toUpperCase()} Threat Detected`,
+      message: `${threat.name} targeting ${threat.target}`,
+    });
+
+    // Auto-initiate healing for critical threats
+    if (threat.severity === 'critical') {
+      setTimeout(() => {
+        setThreats(prev => prev.map(t => 
+          t.id === threat.id 
+            ? { ...t, status: 'isolated' as const }
+            : t
+        ));
+        
+        toast.info(`Isolating threat: ${threat.name}`);
+        
+        setTimeout(() => {
+          setThreats(prev => prev.map(t => 
+            t.id === threat.id 
+              ? { ...t, status: 'healing' as const, healingProgress: 0 }
+              : t
+          ));
+          
+          addAlert({
+            type: 'healing',
+            title: 'Self-Healing Initiated',
+            message: `Automated response triggered for ${threat.name}`,
+          });
+        }, 2000);
+      }, 1500);
+    }
+  }, []);
+
+  const handleScanComplete = useCallback((devices: ScannedDevice[], detectedThreats: DetectedThreat[]) => {
+    setHasScanned(true);
+    toast.success(`Scan complete! Found ${devices.length} devices and ${detectedThreats.length} threats.`);
+    
+    addAlert({
+      type: 'system',
+      title: 'Network Scan Complete',
+      message: `Discovered ${devices.length} devices. ${detectedThreats.length} threats identified.`,
+    });
+  }, []);
+
+  const handleMarkAlertRead = (id: string) => {
+    setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
+  };
+
+  const handleDismissAlert = (id: string) => {
+    setAlerts(prev => prev.filter(a => a.id !== id));
+  };
+
+  const activeThreats = threats.filter(t => t.status === 'active').length;
+  const healingCount = threats.filter(t => t.status === 'healing').length;
+  const resolvedCount = threats.filter(t => t.status === 'resolved').length;
+  const filteredLogs = selectedThreat 
+    ? healingLogs.filter(l => l.threatId === selectedThreat.id)
+    : healingLogs;
+
+  return (
+    <div className="min-h-screen bg-background grid-pattern">
+      {/* Header */}
+      <header className="glass-strong border-b border-border/50 sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-[0_0_30px_hsl(187_100%_50%/0.4)]">
+                  <Shield className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <span className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background ${hasScanned ? 'bg-success' : 'bg-muted-foreground'} animate-pulse`} />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold flex items-center gap-2">
+                  <span className="text-glow">CyberGuard</span>
+                  <span className="text-primary">AI</span>
+                </h1>
+                <p className="text-xs text-muted-foreground">Self-Healing Security System</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-success/10 border border-success/30">
+                <Activity className="w-4 h-4 text-success animate-pulse" />
+                <span className="text-sm text-success font-medium">
+                  {hasScanned ? 'Monitoring Active' : 'Ready to Scan'}
+                </span>
+              </div>
+              <AlertNotifications 
+                alerts={alerts}
+                onMarkRead={handleMarkAlertRead}
+                onDismiss={handleDismissAlert}
+              />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-6">
+        {/* Welcome Banner */}
+        <div className="glass rounded-2xl cyber-border p-6 mb-6 animate-fade-in relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-accent/5" />
+          <div className="relative z-10 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-5 h-5 text-primary animate-pulse-glow" />
+                <span className="text-sm text-primary font-medium">AI-Powered Protection</span>
+              </div>
+              <h2 className="text-2xl font-bold mb-2">
+                {hasScanned ? 'Network Secured' : 'Welcome to CyberGuard AI'}
+              </h2>
+              <p className="text-muted-foreground max-w-xl">
+                {hasScanned 
+                  ? `Your network is being monitored. ${threats.length} threats detected, ${resolvedCount} resolved. Risk score: ${riskScore}/100`
+                  : 'Start a network scan to discover devices and detect potential security threats in real-time.'
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        {hasScanned && (
+          <div className="mb-6 animate-fade-in">
+            <StatsCards 
+              totalThreats={threats.length}
+              activeThreats={activeThreats}
+              healingInProgress={healingCount}
+              resolvedToday={resolvedCount}
+            />
+          </div>
+        )}
+
+        {/* Main Dashboard Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left Column - Scanner & Risk Score */}
+          <div className="lg:col-span-4 space-y-6">
+            <NetworkScanner
+              onDeviceFound={handleDeviceFound}
+              onThreatDetected={handleThreatDetected}
+              onScanComplete={handleScanComplete}
+              onProgressUpdate={setScanProgress}
+            />
+            {hasScanned && <RiskScoreGauge score={riskScore} />}
+            {threats.length > 0 && (
+              <ThreatList 
+                threats={threats}
+                onSelectThreat={setSelectedThreat}
+                selectedThreatId={selectedThreat?.id}
+              />
+            )}
+          </div>
+
+          {/* Center Column - Details & Network */}
+          <div className="lg:col-span-4 space-y-6">
+            {selectedThreat ? (
+              <ThreatDetail 
+                threat={selectedThreat}
+                onClose={() => setSelectedThreat(null)}
+              />
+            ) : hasScanned ? (
+              <div className="glass rounded-xl cyber-border p-8 text-center animate-fade-in">
+                <Shield className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Select a Threat</h3>
+                <p className="text-sm text-muted-foreground">
+                  Click on a threat from the list to view detailed analysis and healing options.
+                </p>
+              </div>
+            ) : (
+              <div className="glass rounded-xl cyber-border p-8 text-center animate-fade-in">
+                <Shield className="w-12 h-12 text-primary/30 mx-auto mb-4 animate-pulse" />
+                <h3 className="text-lg font-medium mb-2">Start Scanning</h3>
+                <p className="text-sm text-muted-foreground">
+                  Click "Start Network Scan" to discover devices and detect threats on your network.
+                </p>
+              </div>
+            )}
+            {networkNodes.length > 0 && (
+              <NetworkTopology nodes={networkNodes} />
+            )}
+          </div>
+
+          {/* Right Column - Healing Logs */}
+          <div className="lg:col-span-4 space-y-6">
+            {hasScanned && <HealingLogs logs={filteredLogs} />}
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border/50 mt-12 py-4">
+        <div className="container mx-auto px-4">
+          <p className="text-center text-xs text-muted-foreground">
+            CyberGuard AI v2.0 • Self-Healing Security System • Protected by AI
+          </p>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+export default Index;
