@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GATE 2027 ECE — AIR 1 Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0e1a;--bg2:#111827;--bg3:#1a2235;
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.15);
+  --text:#f0f4ff;--text2:#8a9bb8;--text3:#4a5568;
+  --blue:#3b82f6;--blue-light:#93c5fd;--blue-dim:rgba(59,130,246,0.15);
+  --teal:#10b981;--teal-light:#6ee7b7;--teal-dim:rgba(16,185,129,0.15);
+  --amber:#f59e0b;--amber-light:#fcd34d;--amber-dim:rgba(245,158,11,0.15);
+  --purple:#8b5cf6;--purple-light:#c4b5fd;--purple-dim:rgba(139,92,246,0.15);
+  --coral:#f43f5e;--coral-dim:rgba(244,63,94,0.15);
+  --green:#22c55e;--radius:12px;--radius-sm:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5}
+
+.app-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.app-logo{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--blue-light);letter-spacing:.05em}
+.app-logo span{color:var(--text2);font-weight:400}
+.app-date{font-size:11px;color:var(--text2);font-family:'Space Mono',monospace}
+
+.nav{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.nav::-webkit-scrollbar{display:none}
+.ntab{padding:10px 14px;font-size:12px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--text2);white-space:nowrap;transition:color .2s,border-color .2s;letter-spacing:.02em}
+.ntab:hover{color:var(--text)}
+.ntab.on{color:var(--blue-light);border-bottom-color:var(--blue)}
+
+.page{display:none;padding:16px 20px 80px;max-width:700px;margin:0 auto}
+.page.on{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.sec{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;margin-top:20px}
+.sec:first-child{margin-top:0}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;transition:border-color .2s}
+.card:hover{border-color:var(--border2)}
+.card-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.card-title{font-size:14px;font-weight:500;flex:1}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.scard{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 10px;text-align:center}
+.snum{font-size:20px;font-weight:600;font-family:'Space Mono',monospace}
+.slbl{font-size:10px;color:var(--text2);margin-top:3px}
+
+.badge{font-size:10px;font-weight:500;padding:3px 8px;border-radius:4px;white-space:nowrap;font-family:'Space Mono',monospace}
+.b-blue{background:var(--blue-dim);color:var(--blue-light)}
+.b-teal{background:var(--teal-dim);color:var(--teal-light)}
+.b-amber{background:var(--amber-dim);color:var(--amber-light)}
+.b-purple{background:var(--purple-dim);color:var(--purple-light)}
+.b-coral{background:var(--coral-dim);color:#fda4af}
+.b-gray{background:rgba(255,255,255,0.06);color:var(--text2)}
+
+.pbar-wrap{background:rgba(255,255,255,0.06);border-radius:3px;height:4px}
+.pbar{height:4px;border-radius:3px;transition:width .5s cubic-bezier(.4,0,.2,1);min-width:0}
+
+.focus-box{background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
+.focus-label{font-family:'Space Mono',monospace;font-size:10px;color:var(--blue-light);font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.focus-text{font-size:16px;font-weight:600;color:var(--text);margin-bottom:3px}
+.focus-sub{font-size:12px;color:var(--blue-light);opacity:.8}
+
+.streak-box{display:flex;align-items:center;gap:14px;background:var(--amber-dim);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
+.streak-num{font-size:36px;font-weight:700;font-family:'Space Mono',monospace;color:var(--amber-light);line-height:1}
+.streak-info{flex:1}
+.streak-title{font-size:14px;font-weight:600}
+.streak-sub{font-size:11px;color:var(--text2);margin-top:2px}
+
+.week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:16px}
+.wday{text-align:center;font-size:10px;color:var(--text3);padding-bottom:3px;font-family:'Space Mono',monospace}
+.wdot{width:100%;aspect-ratio:1;border-radius:5px;background:rgba(255,255,255,0.05);border:1px solid transparent;transition:background .2s}
+.wdot.done{background:var(--teal)}
+.wdot.partial{background:var(--amber);opacity:.6}
+.wdot.today{border-color:var(--blue)}
+
+/* TIMETABLE */
+.tt-grid{display:grid;grid-template-columns:60px repeat(9,1fr);gap:1px;background:var(--border);border-radius:var(--radius-sm);overflow:hidden;font-size:10px;margin-bottom:12px}
+.tt-cell{background:var(--bg2);padding:5px 4px;min-height:32px;display:flex;align-items:center;justify-content:center;text-align:center;font-family:'Space Mono',monospace;font-size:9px;color:var(--text2);line-height:1.3}
+.tt-hdr{background:var(--bg3);color:var(--text3);font-weight:700;font-size:8px;letter-spacing:.05em}
+.tt-day{background:var(--bg3);color:var(--text2);font-weight:700;font-size:9px}
+.tt-subj{color:var(--blue-light);font-weight:700;font-size:9px}
+.tt-lab{color:var(--teal-light);font-weight:700;font-size:9px}
+.tt-oe{color:var(--amber-light);font-size:9px}
+.tt-empty{color:var(--text3)}
+
+/* DAILY CHECKLIST */
+.check-item{display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:opacity .15s}
+.check-item:last-child{border-bottom:none}
+.check-item:hover{opacity:.85}
+.chk{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--border2);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s;margin-top:1px}
+.chk.done{background:var(--teal);border-color:var(--teal)}
+.chk.done::after{content:'';display:block;width:5px;height:9px;border:2px solid #fff;border-top:none;border-left:none;transform:rotate(45deg);margin-top:-2px}
+.ci-content{flex:1}
+.ci-label{font-size:13px;transition:color .15s}
+.ci-label.done{color:var(--text2);text-decoration:line-through}
+.ci-sub{font-size:10px;color:var(--text3);margin-top:2px;font-family:'Space Mono',monospace}
+.ci-time{font-size:10px;color:var(--text3);font-family:'Space Mono',monospace;white-space:nowrap;flex-shrink:0;padding-top:2px}
+.ci-type{font-size:9px;padding:1px 6px;border-radius:3px;display:inline-block;margin-top:3px}
+.ci-gate{background:var(--blue-dim);color:var(--blue-light)}
+.ci-uni{background:var(--teal-dim);color:var(--teal-light)}
+.ci-both{background:var(--purple-dim);color:var(--purple-light)}
+.ci-misc{background:rgba(255,255,255,0.06);color:var(--text3)}
+
+/* SUBJECTS */
+.subj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px}
+.sj{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;cursor:pointer;transition:border-color .2s,background .2s}
+.sj:hover{background:var(--bg3);border-color:var(--border2)}
+.sj.active{border-color:var(--blue)}
+.sj-name{font-size:12px;font-weight:600;margin-bottom:2px}
+.sj-marks{font-size:10px;color:var(--text2);margin-bottom:8px}
+.sj-pct{font-size:13px;font-weight:700;text-align:right;margin-top:5px;font-family:'Space Mono',monospace}
+
+.subj-detail{background:var(--bg2);border:1px solid var(--blue);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+
+/* UNI SUBJECTS */
+.uni-subj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.uj{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;cursor:pointer;transition:border-color .2s}
+.uj:hover{border-color:var(--border2)}
+.uj.active{border-color:var(--teal)}
+.uj-code{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--teal-light);margin-bottom:2px}
+.uj-name{font-size:12px;font-weight:500;margin-bottom:2px}
+.uj-teacher{font-size:10px;color:var(--text3);margin-bottom:8px}
+.uj-pct{font-size:13px;font-weight:700;text-align:right;font-family:'Space Mono',monospace}
+
+/* ERROR LOG */
+.err-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;transition:border-color .2s}
+.err-item:hover{border-color:var(--border2)}
+.err-hdr{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+.err-subj{font-size:12px;font-weight:600}
+.err-note{font-size:12px;color:var(--text2);margin-top:4px;line-height:1.5}
+.err-date{font-size:10px;color:var(--text3);margin-left:auto;font-family:'Space Mono',monospace}
+
+/* MOCKS */
+.mock-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.mock-row:last-child{border-bottom:none}
+.score-pill{font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;font-family:'Space Mono',monospace}
+.s-high{background:var(--teal-dim);color:var(--teal-light)}
+.s-mid{background:var(--amber-dim);color:var(--amber-light)}
+.s-low{background:var(--coral-dim);color:#fda4af}
+
+/* PHASE CARDS */
+.phase-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;transition:border-color .2s}
+.phase-card:hover{border-color:var(--border2)}
+.phase-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.phase-title{font-size:14px;font-weight:600;flex:1}
+.phase-dates{font-size:11px;color:var(--text2);margin-bottom:8px;font-family:'Space Mono',monospace}
+.phase-btns{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap}
+
+/* BUTTONS */
+.btn-primary{padding:10px 20px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;background:var(--blue);color:#fff;border:none;cursor:pointer;transition:opacity .15s,transform .1s;font-family:'DM Sans',sans-serif}
+.btn-primary:hover{opacity:.85}
+.btn-primary:active{transform:scale(0.98)}
+.btn-sm{padding:5px 10px;border-radius:6px;font-size:11px;font-weight:500;background:rgba(255,255,255,0.06);color:var(--text2);border:1px solid var(--border);cursor:pointer;transition:background .15s,color .15s;font-family:'DM Sans',sans-serif}
+.btn-sm:hover{background:rgba(255,255,255,0.12);color:var(--text)}
+.del-btn{font-size:10px;color:var(--coral);cursor:pointer;background:none;border:none;padding:2px 6px;border-radius:4px;transition:background .15s;font-family:'DM Sans',sans-serif}
+.del-btn:hover{background:var(--coral-dim)}
+.mark-done-btn{padding:8px 14px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;background:var(--teal-dim);color:var(--teal-light);border:1px solid rgba(16,185,129,0.3);cursor:pointer;white-space:nowrap;transition:background .15s;font-family:'DM Sans',sans-serif}
+.mark-done-btn:hover{background:rgba(16,185,129,0.25)}
+
+/* FORMS */
+input,select,textarea{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:'DM Sans',sans-serif;width:100%;transition:border-color .2s;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+input::placeholder,textarea::placeholder{color:var(--text3)}
+textarea{resize:vertical;min-height:60px}
+select option{background:var(--bg2)}
+.form-row{display:flex;gap:8px;margin-bottom:8px}
+.form-row>*{flex:1;min-width:0}
+
+.empty{text-align:center;padding:30px 20px;color:var(--text3);font-size:13px}
+.empty strong{display:block;font-size:14px;color:var(--text2);margin-bottom:5px}
+
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+@media(max-width:480px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.page{padding:12px 14px 80px}.tt-grid{font-size:8px}}
+
+/* OVERLAP HIGHLIGHT */
+.overlap-tag{font-size:9px;background:rgba(139,92,246,0.2);color:var(--purple-light);padding:1px 5px;border-radius:3px;font-family:'Space Mono',monospace;margin-left:4px}
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="app-logo">GATE 2027 <span>/ VLSI-IV / AIR 1</span></div>
+  <div class="app-date" id="header-date"></div>
+</div>
+
+<div class="nav">
+  <div class="ntab on" onclick="nav('dashboard',this)">Dashboard</div>
+  <div class="ntab" onclick="nav('daily',this)">Today</div>
+  <div class="ntab" onclick="nav('timetable',this)">Timetable</div>
+  <div class="ntab" onclick="nav('subjects',this)">GATE subjects</div>
+  <div class="ntab" onclick="nav('university',this)">University</div>
+  <div class="ntab" onclick="nav('errors',this)">Error log</div>
+  <div class="ntab" onclick="nav('mocks',this)">Mock scores</div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="page on" id="pg-dashboard">
+  <div class="sec" style="margin-top:16px">Today's focus</div>
+  <div class="focus-box">
+    <div class="focus-label">Current priority</div>
+    <div class="focus-text" id="dash-focus-text">Loading...</div>
+    <div class="focus-sub" id="dash-focus-sub"></div>
+  </div>
+
+  <div class="streak-box">
+    <div class="streak-num" id="streak-num">0</div>
+    <div class="streak-info">
+      <div class="streak-title">Day streak</div>
+      <div class="streak-sub" id="streak-sub">Start today!</div>
+    </div>
+    <button class="mark-done-btn" onclick="markTodayDone()">Mark today done</button>
+  </div>
+
+  <div class="sec">This week</div>
+  <div class="week-grid" id="week-grid"></div>
+
+  <div class="stats">
+    <div class="scard"><div class="snum" style="color:var(--blue-light)" id="st-days">0</div><div class="slbl">Days studied</div></div>
+    <div class="scard"><div class="snum" style="color:var(--teal-light)" id="st-subj">0%</div><div class="slbl">Avg GATE %</div></div>
+    <div class="scard"><div class="snum" style="color:var(--coral)" id="st-errors">0</div><div class="slbl">Errors logged</div></div>
+    <div class="scard"><div class="snum" style="color:var(--amber-light)" id="st-mocks">0</div><div class="slbl">Mocks taken</div></div>
+  </div>
+
+  <div class="sec">GATE subject progress</div>
+  <div class="card"><div id="overall-progress-bars"></div></div>
+
+  <div class="sec">Phase progress</div>
+  <div id="phase-cards"></div>
+</div>
+
+<!-- TODAY -->
+<div class="page" id="pg-daily">
+  <div class="sec" style="margin-top:16px" id="daily-date-label"></div>
+  <div id="uni-classes-today" style="margin-bottom:10px"></div>
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-title">Daily sessions</div>
+      <span class="badge b-teal" id="daily-done-count">0/9 done</span>
+    </div>
+    <div id="checklist"></div>
+  </div>
+  <div class="sec">Today's notes</div>
+  <div class="card">
+    <textarea id="daily-notes" placeholder="Breakthroughs, struggles, things to revisit..." style="border:none;background:transparent;padding:0;width:100%;min-height:70px" oninput="saveNotes()"></textarea>
+    <div style="font-size:10px;color:var(--text3);margin-top:6px;font-family:'Space Mono',monospace">AUTO-SAVED</div>
+  </div>
+</div>
+
+<!-- TIMETABLE -->
+<div class="page" id="pg-timetable">
+  <div class="sec" style="margin-top:16px">VLSI-IV weekly timetable (W.E.F. March 2026)</div>
+  <div style="overflow-x:auto;margin-bottom:12px">
+    <div class="tt-grid" style="min-width:600px">
+      <!-- HEADER ROW -->
+      <div class="tt-cell tt-hdr">Day</div>
+      <div class="tt-cell tt-hdr">09-10</div>
+      <div class="tt-cell tt-hdr">10-11</div>
+      <div class="tt-cell tt-hdr">11-12</div>
+      <div class="tt-cell tt-hdr">12-01</div>
+      <div class="tt-cell tt-hdr">01-02</div>
+      <div class="tt-cell tt-hdr">02-03</div>
+      <div class="tt-cell tt-hdr">03-04</div>
+      <div class="tt-cell tt-hdr">04-05</div>
+      <div class="tt-cell tt-hdr">05-06</div>
+      <!-- MON -->
+      <div class="tt-cell tt-day">Mon</div>
+      <div class="tt-cell tt-oe">OE</div>
+      <div class="tt-cell tt-subj">MDM</div>
+      <div class="tt-cell tt-empty">—</div>
+      <div class="tt-cell tt-empty">—</div>
+      <div class="tt-cell" style="font-size:8px;color:var(--text2)">SS[PPI](101)/<br>NT[SVK](106)</div>
+      <div class="tt-cell tt-lab">AC(A)[AAP]/<br>DC(B)[SJG]</div>
+      <div class="tt-cell tt-lab">SDV(A)[RRJ]/<br>PCB(B)[PPM]</div>
+      <div class="tt-cell tt-lab">DSDV(B)[PPM]/<br>ADC(A)[SSM]</div>
+      <div class="tt-cell tt-empty">—</div>
+      <!-- TUE -->
+      <div class="tt-cell tt-day">Tue</div>
+      <div class="tt-cell tt-subj">MDM</div>
+      <div class="tt-cell tt-subj">EDC[PPK]</div>
+      <div class="tt-cell tt-subj">MP[KSK]</div>
+      <div class="tt-cell tt-subj">SDV[RRJ]</div>
+      <div class="tt-cell tt-subj">PIPR[RKB]</div>
+      <div class="tt-cell tt-lab">EDC(A)[PPK]/<br>MP(B)[SSS]</div>
+      <div class="tt-cell tt-lab">AC(B)[AAP]/<br>DC(C)[SJG]</div>
+      <div class="tt-cell tt-empty">—</div>
+      <div class="tt-cell tt-empty">—</div>
+      <!-- WED -->
+      <div class="tt-cell tt-day">Wed</div>
+      <div class="tt-cell tt-oe">OE</div>
+      <div class="tt-cell tt-subj">CoI[MTRK]</div>
+      <div class="tt-cell tt-subj">MP[KSK]</div>
+      <div class="tt-cell tt-subj">EDC[PPK]</div>
+      <div class="tt-cell tt-subj">LDBA[MTRK]</div>
+      <div class="tt-cell tt-subj">PIPR[RKB]</div>
+      <div class="tt-cell tt-lab">AC(E)[AAP]/<br>DC(F)[SJG]</div>
+      <div class="tt-cell tt-lab">PCB(A)[PPM]</div>
+      <div class="tt-cell tt-lab">DSDV(A)[PPM]/<br>ADC(B)[SSM]</div>
+      <!-- THU -->
+      <div class="tt-cell tt-day">Thu</div>
+      <div class="tt-cell tt-oe">OE</div>
+      <div class="tt-cell tt-subj">CoI[MTRK]</div>
+      <div class="tt-cell tt-subj">MIL[SPG]</div>
+      <div class="tt-cell tt-subj">EDC[PPK]</div>
+      <div class="tt-cell tt-subj">SDV[RRJ]</div>
+      <div class="tt-cell tt-lab">AC(C)[SSS]/<br>DC(A)[SJG]</div>
+      <div class="tt-cell tt-lab">SDV(B)[RRJ]/<br>MP(A)[KSK]</div>
+      <div class="tt-cell tt-empty">—</div>
+      <div class="tt-cell tt-empty">—</div>
+      <!-- FRI -->
+      <div class="tt-cell tt-day">Fri</div>
+      <div class="tt-cell tt-oe">OE</div>
+      <div class="tt-cell tt-subj">MIL[SPG]</div>
+      <div class="tt-cell tt-subj">SDV[RRJ]</div>
+      <div class="tt-cell tt-empty">—</div>
+      <div class="tt-cell tt-empty">—</div>
+      <div class="tt-cell tt-lab">AC(F)[AAP]/<br>DC(G)[SJG]</div>
+      <div class="tt-cell tt-lab">EDC(B)[PPK]/<br>PCB(A)[PPM]</div>
+      <div class="tt-cell tt-empty">—</div>
+      <div class="tt-cell tt-empty">—</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;font-size:11px">
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:var(--blue-dim);border:1px solid var(--blue);border-radius:2px;display:inline-block"></span>Theory lecture</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:var(--teal-dim);border:1px solid var(--teal);border-radius:2px;display:inline-block"></span>Lab / practical</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:var(--amber-dim);border:1px solid var(--amber);border-radius:2px;display:inline-block"></span>Open elective</span>
+  </div>
+
+  <div class="sec">Subject codes — VLSI-IV</div>
+  <div id="subj-code-list"></div>
+
+  <div class="sec">GATE overlap — use university classes strategically</div>
+  <div class="card" style="border-color:rgba(139,92,246,0.3)">
+    <div style="font-size:12px;color:var(--text2);line-height:1.7">
+      <div style="margin-bottom:8px"><span class="badge b-purple" style="margin-right:6px">EDC</span> Directly maps to GATE EDC (~8 marks). PPK teaches this — pay extra attention in class.</div>
+      <div style="margin-bottom:8px"><span class="badge b-purple" style="margin-right:6px">MP</span> Microprocessors overlaps with GATE Digital/Microprocessors section.</div>
+      <div style="margin-bottom:8px"><span class="badge b-purple" style="margin-right:6px">AC</span> Analog Circuits lab reinforces GATE Analog theory (~8 marks). DC lab → GATE EDC.</div>
+      <div style="margin-bottom:8px"><span class="badge b-purple" style="margin-right:6px">DSDV / ADC</span> Digital Systems — overlaps with GATE Digital Circuits.</div>
+      <div><span class="badge b-gray" style="margin-right:6px">SDV / LDBA / CoI / MIL / PIPR</span> VLSI-specific — focus on CGPA, minimal GATE overlap.</div>
+    </div>
+  </div>
+</div>
+
+<!-- GATE SUBJECTS -->
+<div class="page" id="pg-subjects">
+  <div class="sec" style="margin-top:16px">Tap a subject to update progress</div>
+  <div class="subj-grid" id="subj-grid"></div>
+  <div id="subj-detail-wrapper"></div>
+</div>
+
+<!-- UNIVERSITY -->
+<div class="page" id="pg-university">
+  <div class="sec" style="margin-top:16px">VLSI-IV university subjects — semester progress</div>
+  <div class="uni-subj-grid" id="uni-subj-grid"></div>
+  <div id="uni-detail-wrapper"></div>
+
+  <div class="sec">CGPA strategy</div>
+  <div class="card" style="border-color:rgba(16,185,129,0.3)">
+    <div style="font-size:12px;color:var(--text2);line-height:1.7">
+      <div style="margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text)">2-week rule before any exam</div>
+      Shift 40% of study time to university exam prep 2 weeks before internals/end-sem. Return to full GATE schedule the day after your exam.
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px">Labs = easy CGPA marks</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.7">Your AC, DC, EDC, MP, PCB, DSDV, ADC labs contribute heavily to CGPA. Complete records on time. Viva prep on Sunday mornings — these concepts also reinforce GATE theory.</div>
+  </div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px">Target CGPA</div>
+    <div style="font-size:12px;color:var(--text2)">IITs M.Tech: 6.5+ CGPA · PSUs (BHEL/DRDO/ISRO): 60-65% aggregate · Aim for 8.0+ alongside AIR 1</div>
+  </div>
+</div>
+
+<!-- ERRORS -->
+<div class="page" id="pg-errors">
+  <div class="sec" style="margin-top:16px">Log a new error</div>
+  <div class="card">
+    <div class="form-row">
+      <select id="err-subj">
+        <option value="">Subject</option>
+        <optgroup label="GATE subjects">
+          <option>Engg. maths</option><option>Networks</option><option>Signals &amp; systems</option>
+          <option>EDC (GATE)</option><option>Analog circuits</option><option>Digital circuits</option>
+          <option>Control systems</option><option>Electromagnetics</option><option>Communications</option>
+          <option>General aptitude</option>
+        </optgroup>
+        <optgroup label="University subjects">
+          <option>EDC (Uni)</option><option>MP (Uni)</option><option>SDV</option>
+          <option>DSDV</option><option>ADC</option><option>CoI</option>
+          <option>LDBA</option><option>MIL</option><option>PIPR</option><option>MDM</option>
+        </optgroup>
+      </select>
+      <select id="err-type">
+        <option value="">Error type</option>
+        <option>Conceptual</option><option>Calculation</option><option>Silly mistake</option><option>Time management</option>
+      </select>
+    </div>
+    <input id="err-topic" placeholder="Topic / concept (e.g. Thevenin theorem)" style="margin-bottom:8px">
+    <textarea id="err-note" placeholder="What went wrong? What is the correct approach?" style="margin-bottom:10px;min-height:55px"></textarea>
+    <button class="btn-primary" onclick="addError()">Log error</button>
+  </div>
+  <div class="sec" id="err-count-lbl">Error log</div>
+  <div id="err-list"></div>
+</div>
+
+<!-- MOCKS -->
+<div class="page" id="pg-mocks">
+  <div class="sec" style="margin-top:16px">Log a mock test</div>
+  <div class="card">
+    <div class="form-row">
+      <input type="date" id="mock-date" style="max-width:160px">
+      <input type="number" id="mock-score" placeholder="Score (0-100)" min="0" max="100">
+      <select id="mock-series">
+        <option>Made Easy</option><option>ACE</option><option>GATE Academy</option><option>Self</option><option>Official PYQ</option>
+      </select>
+    </div>
+    <textarea id="mock-notes" placeholder="Key takeaways / weak areas from this mock..." style="margin-bottom:10px;min-height:50px"></textarea>
+    <button class="btn-primary" onclick="addMock()">Save mock</button>
+  </div>
+
+  <div id="mock-summary" style="display:none;margin-bottom:6px">
+    <div class="stats">
+      <div class="scard"><div class="snum" style="color:var(--teal-light)" id="mock-avg">—</div><div class="slbl">Avg score</div></div>
+      <div class="scard"><div class="snum" style="color:var(--blue-light)" id="mock-best">—</div><div class="slbl">Best score</div></div>
+      <div class="scard"><div class="snum" style="color:var(--amber-light)" id="mock-count2">0</div><div class="slbl">Total mocks</div></div>
+      <div class="scard"><div class="snum" style="color:var(--purple-light)" id="mock-trend">—</div><div class="slbl">Last 3 avg</div></div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:6px">
+        <span>Progress to target (85+)</span><span id="mock-pct-lbl">0%</span>
+      </div>
+      <div class="pbar-wrap"><div class="pbar" id="mock-target-bar" style="background:var(--teal)"></div></div>
+    </div>
+  </div>
+  <div class="sec">All mocks</div>
+  <div class="card" id="mock-list-wrap" style="padding:0"><div id="mock-list" style="padding:0 16px"></div></div>
+</div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────────────────
+const GATE_SUBJECTS = [
+  {name:'Engg. maths',marks:13,month:'April',color:'b-teal'},
+  {name:'Networks',marks:12,month:'May',color:'b-blue'},
+  {name:'Signals & systems',marks:9,month:'June',color:'b-blue'},
+  {name:'EDC',marks:8,month:'June',color:'b-blue',overlap:true},
+  {name:'Analog circuits',marks:8,month:'July',color:'b-amber',overlap:true},
+  {name:'Digital circuits',marks:7,month:'August',color:'b-amber',overlap:true},
+  {name:'Control systems',marks:8,month:'August',color:'b-amber'},
+  {name:'Electromagnetics',marks:5,month:'September',color:'b-purple'},
+  {name:'Communications',marks:9,month:'September',color:'b-purple'},
+  {name:'General aptitude',marks:15,month:'Daily',color:'b-teal'},
+];
+
+const UNI_SUBJECTS = [
+  {code:'EDC',name:'Electronic Devices & Circuits',teacher:'PPK',overlap:'GATE EDC',color:'b-purple'},
+  {code:'MP',name:'Microprocessors',teacher:'KSK',overlap:'GATE Digital',color:'b-purple'},
+  {code:'MDM',name:'Mixed Domain Modelling',teacher:'—',overlap:null,color:'b-gray'},
+  {code:'SDV',name:'System Design & Verification',teacher:'RRJ',overlap:null,color:'b-gray'},
+  {code:'DSDV',name:'Digital System Design & Verification',teacher:'PPM',overlap:'GATE Digital',color:'b-blue'},
+  {code:'ADC',name:'Analog & Digital Circuits',teacher:'SSM',overlap:'GATE Analog',color:'b-blue'},
+  {code:'CoI',name:'Computing Infrastructure',teacher:'MTRK',overlap:null,color:'b-gray'},
+  {code:'LDBA',name:'Logic Design & Boolean Algebra',teacher:'MTRK',overlap:'GATE Digital',color:'b-blue'},
+  {code:'MIL',name:'Microelectronics & IC Layout',teacher:'SPG',overlap:null,color:'b-gray'},
+  {code:'PIPR',name:'Project / Internship / Project Report',teacher:'RKB',overlap:null,color:'b-gray'},
+];
+
+const SUBJ_LABS = [
+  {code:'AC',lab:'SS Lab'},{code:'DC',lab:'EDC Lab'},{code:'SS',lab:'SS Lab'},
+  {code:'NT',lab:'EDC Lab'},{code:'MP',lab:'Computer Center'},
+  {code:'PCB',lab:'VLSI Design Lab'},{code:'EDC',lab:'Microwave Lab'},
+  {code:'DSDV',lab:'M.Tech Lab'},{code:'ADC',lab:'VLSI Design Lab'},{code:'SDV',lab:'M.Tech Lab'},
+];
+
+const PHASES = [
+  {name:'Phase 1 — Rapid foundation',dates:'13 Apr – 30 Jun 2026',color:'b-blue',key:'p1'},
+  {name:'Phase 2 — Subject depth',dates:'1 Jul – 30 Sep 2026',color:'b-amber',key:'p2'},
+  {name:'Phase 3 — Integration & mocks',dates:'1 Oct – 31 Dec 2026',color:'b-teal',key:'p3'},
+  {name:'Phase 4 — Final sprint',dates:'1 Jan – Feb 2027',color:'b-purple',key:'p4'},
+];
+
+// Day-indexed timetable for VLSI-IV (0=Sun,1=Mon,...,5=Fri,6=Sat)
+const UNI_TIMETABLE = {
+  1:[// Monday
+    {time:'09-10',code:'OE',type:'theory'},
+    {time:'10-11',code:'MDM',type:'theory'},
+    {time:'01-02',code:'SS / NT',type:'theory',note:'Shared'},
+    {time:'02-03',code:'AC / DC lab',type:'lab'},
+    {time:'03-04',code:'SDV / PCB lab',type:'lab'},
+    {time:'04-05',code:'DSDV / ADC lab',type:'lab'},
+  ],
+  2:[// Tuesday
+    {time:'09-10',code:'MDM',type:'theory'},
+    {time:'10-11',code:'EDC',type:'theory'},
+    {time:'11-12',code:'MP',type:'theory'},
+    {time:'12-01',code:'SDV',type:'theory'},
+    {time:'01-02',code:'PIPR',type:'theory'},
+    {time:'02-03',code:'EDC / MP lab',type:'lab'},
+    {time:'03-04',code:'AC / DC lab',type:'lab'},
+  ],
+  3:[// Wednesday
+    {time:'09-10',code:'OE',type:'theory'},
+    {time:'10-11',code:'CoI',type:'theory'},
+    {time:'11-12',code:'MP',type:'theory'},
+    {time:'12-01',code:'EDC',type:'theory'},
+    {time:'01-02',code:'LDBA',type:'theory'},
+    {time:'02-03',code:'PIPR',type:'theory'},
+    {time:'03-04',code:'AC / DC lab',type:'lab'},
+    {time:'04-05',code:'PCB lab',type:'lab'},
+    {time:'05-06',code:'DSDV / ADC lab',type:'lab'},
+  ],
+  4:[// Thursday
+    {time:'09-10',code:'OE',type:'theory'},
+    {time:'10-11',code:'CoI',type:'theory'},
+    {time:'11-12',code:'MIL',type:'theory'},
+    {time:'12-01',code:'EDC',type:'theory'},
+    {time:'01-02',code:'SDV',type:'theory'},
+    {time:'02-03',code:'AC / DC lab',type:'lab'},
+    {time:'03-04',code:'SDV / MP lab',type:'lab'},
+  ],
+  5:[// Friday
+    {time:'09-10',code:'OE',type:'theory'},
+    {time:'10-11',code:'MIL',type:'theory'},
+    {time:'11-12',code:'SDV',type:'theory'},
+    {time:'02-03',code:'AC / DC lab',type:'lab'},
+    {time:'03-04',code:'EDC / PCB lab',type:'lab'},
+  ],
+};
+
+// Daily sessions with university integration
+function getDailySessions(dayOfWeek){
+  const uniClasses = UNI_TIMETABLE[dayOfWeek]||[];
+  const hasUni = uniClasses.length > 0;
+  const isWeekend = dayOfWeek===0||dayOfWeek===6;
+
+  if(isWeekend){
+    return [
+      {id:'s1',label:'Full mock test (3 hours)',sub:'9:30 AM sharp — exam conditions',time:'9:30–12:30',type:'gate'},
+      {id:'s2',label:'Mock analysis & error log update',sub:'Go through every wrong answer',time:'1:00–3:00',type:'gate'},
+      {id:'s3',label:'Weak subject deep dive',sub:'Focus on your lowest-scoring area',time:'3:30–6:00',type:'gate'},
+      {id:'s4',label:'Formula sheet revision',sub:'All subjects — 15 min each',time:'7:00–8:30',type:'gate'},
+      {id:'s5',label:'General aptitude practice',sub:'30 mins verbal + 30 mins quant',time:'8:30–9:30',type:'gate'},
+    ];
+  }
+
+  let sessions = [
+    {id:'su0',label:'Attend university classes',sub:uniClasses.map(c=>c.code+(c.type==='lab'?' (lab)':'')).join(' · '),time:'9:00–5:00',type:'uni'},
+    {id:'s1',label:'Session 1 — Core GATE subject (new topic)',sub:'Fresh reading + notes + formula capture',time:'6:00–8:30 AM',type:'gate'},
+    {id:'s2',label:'PYQ practice — topic-wise',sub:'Previous year questions, timed',time:'5:30–7:30 PM',type:'gate'},
+    {id:'s3',label:'Weak subject / revision session',sub:'Rotate your weakest GATE subject daily',time:'7:30–9:00 PM',type:'gate'},
+    {id:'s4',label:'Error log review',sub:'Update mistakes from today',time:'9:00–9:30 PM',type:'gate'},
+    {id:'s5',label:'Formula & short notes revision',sub:'One subject per night',time:'9:30–10:00 PM',type:'gate'},
+    {id:'s6',label:'General aptitude (30 min)',sub:'Daily — verbal + quant',time:'10:00–10:30 PM',type:'gate'},
+  ];
+
+  // Add lab record reminder if lab day
+  const hasLab = uniClasses.some(c=>c.type==='lab');
+  if(hasLab){
+    sessions.splice(1,0,{id:'su1',label:'Lab record / viva prep',sub:'Complete before next lab session',time:'Morning',type:'uni'});
+  }
+
+  return sessions;
+}
+
+const TODAY_FOCUS = [
+  {month:3,text:'Engineering Mathematics',sub:'Linear Algebra + Calculus — Start formula notebook today'},
+  {month:4,text:'Networks',sub:'KVL/KCL, Thevenin, Norton, AC analysis (parallel with EDC in uni)'},
+  {month:5,text:'Signals & Systems + EDC',sub:'Fourier, Laplace, Z-transform + leverage uni EDC classes (PPK)'},
+  {month:6,text:'Analog Circuits',sub:'Op-amps, amplifiers — use AC lab sessions to reinforce'},
+  {month:7,text:'Digital + Control Systems',sub:'Leverage DSDV/ADC/LDBA uni subjects for Digital overlap'},
+  {month:8,text:'Communications + EM Theory',sub:'AM/FM, Shannon capacity, Maxwell\'s equations'},
+  {month:9,text:'Full Revision — Round 1',sub:'All PYQs 2010–2018 + mocks every Sunday'},
+  {month:10,text:'Full Revision — Round 2',sub:'PYQs 2019–2026 + mock every 3 days'},
+  {month:11,text:'Round 3 Revision',sub:'Formula sheet focus, target 80+ in mocks'},
+  {month:12,text:'Final Sprint',sub:'Mock every 2 days, target 85+, formula sheets only'},
+  {month:1,text:'Exam Month — You are ready',sub:'Rest, light revision, confidence'},
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let state = {
+  subjects:{}, uniSubjects:{}, dailyChecks:{}, dailyNotes:{},
+  errors:[], mocks:[], studiedDays:[],
+  phaseProgress:{p1:0,p2:0,p3:0,p4:0},
+};
+let activeSubj=null, activeUniSubj=null;
+const TODAY=new Date();
+const todayKey=TODAY.toISOString().slice(0,10);
+
+function loadState(){
+  try{ const r=localStorage.getItem('gate2027-vlsi-v1'); if(r) state=JSON.parse(r); }catch(e){}
+  render();
+}
+function saveState(){
+  try{ localStorage.setItem('gate2027-vlsi-v1',JSON.stringify(state)); }catch(e){}
+}
+
+function nav(id,el){
+  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('pg-'+id).classList.add('on');
+}
+
+function render(){
+  document.getElementById('header-date').textContent=
+    TODAY.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+  document.getElementById('daily-date-label').textContent=
+    TODAY.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  renderDashboard();
+  renderDaily();
+  renderSubjects();
+  renderUniSubjects();
+  renderErrors();
+  renderMocks();
+  renderSubjectCodes();
+  document.getElementById('mock-date').value=todayKey;
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+function getCurrentFocus(){
+  const m=TODAY.getMonth(), y=TODAY.getFullYear();
+  if(y===2027) return TODAY_FOCUS[10];
+  return TODAY_FOCUS.find(f=>f.month===m)||TODAY_FOCUS[0];
+}
+
+function renderDashboard(){
+  const f=getCurrentFocus();
+  document.getElementById('dash-focus-text').textContent=f.text;
+  document.getElementById('dash-focus-sub').textContent=f.sub;
+
+  const studied=state.studiedDays||[];
+  const streak=calcStreak(studied);
+  document.getElementById('streak-num').textContent=streak;
+  document.getElementById('streak-sub').textContent=
+    streak>0?studied.length+' total days studied':'Start today!';
+  document.getElementById('st-days').textContent=studied.length;
+
+  const avg=GATE_SUBJECTS.reduce((a,s)=>{
+    const d=state.subjects[s.name]||{};return a+(d.pct||0);
+  },0)/GATE_SUBJECTS.length;
+  document.getElementById('st-subj').textContent=Math.round(avg)+'%';
+  document.getElementById('st-errors').textContent=(state.errors||[]).length;
+  document.getElementById('st-mocks').textContent=(state.mocks||[]).length;
+
+  renderWeekGrid();
+
+  document.getElementById('overall-progress-bars').innerHTML=GATE_SUBJECTS.map(s=>{
+    const d=state.subjects[s.name]||{};
+    const pct=d.pct||0;
+    const col=pct>=80?'var(--teal)':pct>=40?'var(--amber)':'var(--blue)';
+    const ovl=s.overlap?'<span class="overlap-tag">UNI OVERLAP</span>':'';
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;align-items:center">
+        <span style="font-size:12px;font-weight:500">${s.name}${ovl}</span>
+        <span style="font-size:11px;color:var(--text2);font-family:'Space Mono',monospace">${pct}%</span>
+      </div>
+      <div class="pbar-wrap"><div class="pbar" style="width:${pct}%;background:${col}"></div></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('phase-cards').innerHTML=PHASES.map(ph=>{
+    const pct=state.phaseProgress[ph.key]||0;
+    const col=ph.color==='b-blue'?'var(--blue)':ph.color==='b-amber'?'var(--amber)':ph.color==='b-teal'?'var(--teal)':'var(--purple)';
+    return `<div class="phase-card">
+      <div class="phase-hdr">
+        <div class="phase-title">${ph.name}</div>
+        <span class="badge ${ph.color}">${pct}%</span>
+      </div>
+      <div class="phase-dates">${ph.dates}</div>
+      <div class="pbar-wrap"><div class="pbar" style="width:${pct}%;background:${col}"></div></div>
+      <div class="phase-btns">
+        ${[0,25,50,75,100].map(v=>`<button class="btn-sm" onclick="setPhase('${ph.key}',${v})">${v}%</button>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderWeekGrid(){
+  const studied=state.studiedDays||[];
+  const weekStart=new Date(TODAY);
+  weekStart.setDate(TODAY.getDate()-TODAY.getDay());
+  const days=['S','M','T','W','T','F','S'];
+  let html=days.map(d=>`<div class="wday">${d}</div>`).join('');
+  for(let i=0;i<7;i++){
+    const d=new Date(weekStart); d.setDate(weekStart.getDate()+i);
+    const k=d.toISOString().slice(0,10);
+    const isToday=k===todayKey;
+    const done=studied.includes(k);
+    const checks=state.dailyChecks[k]||{};
+    const doneCount=Object.values(checks).filter(Boolean).length;
+    const cls=done?'done':doneCount>0?'partial':'';
+    html+=`<div class="wdot ${cls} ${isToday?'today':''}" title="${k}"></div>`;
+  }
+  document.getElementById('week-grid').innerHTML=html;
+}
+
+function calcStreak(days){
+  if(!days||!days.length) return 0;
+  const sorted=[...days].sort().reverse();
+  let streak=0,cur=new Date(TODAY);
+  for(const d of sorted){
+    const dd=new Date(d);
+    const diff=Math.round((cur-dd)/(1000*60*60*24));
+    if(diff<=1){streak++;cur=dd;}else break;
+  }
+  return streak;
+}
+
+function markTodayDone(){
+  const days=state.studiedDays||[];
+  if(!days.includes(todayKey)) state.studiedDays=[...days,todayKey];
+  saveState();renderDashboard();
+}
+
+function setPhase(key,val){
+  state.phaseProgress[key]=val;
+  saveState();renderDashboard();
+}
+
+// ─── DAILY ────────────────────────────────────────────────────────────────────
+function renderDaily(){
+  const dayOfWeek=TODAY.getDay();
+  const sessions=getDailySessions(dayOfWeek);
+  const checks=state.dailyChecks[todayKey]||{};
+  const doneCount=Object.values(checks).filter(Boolean).length;
+  document.getElementById('daily-done-count').textContent=doneCount+'/'+sessions.length+' done';
+
+  // Uni classes banner
+  const uniClasses=UNI_TIMETABLE[dayOfWeek]||[];
+  const uniEl=document.getElementById('uni-classes-today');
+  if(uniClasses.length){
+    uniEl.innerHTML=`<div style="background:var(--teal-dim);border:1px solid rgba(16,185,129,0.25);border-radius:var(--radius);padding:12px 14px;">
+      <div style="font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--teal-light);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">University today</div>
+      ${uniClasses.map(c=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:11px;color:var(--text3);font-family:'Space Mono',monospace;min-width:48px">${c.time}</span>
+        <span class="badge ${c.type==='lab'?'b-teal':'b-blue'}">${c.code}</span>
+        ${c.note?`<span style="font-size:10px;color:var(--text3)">${c.note}</span>`:''}
+      </div>`).join('')}
+    </div>`;
+  } else {
+    uniEl.innerHTML='';
+  }
+
+  document.getElementById('checklist').innerHTML=sessions.map(s=>{
+    const done=checks[s.id]||false;
+    const typeClass={'gate':'ci-gate','uni':'ci-uni','both':'ci-both'}[s.type]||'ci-misc';
+    const typeLabel={'gate':'GATE','uni':'UNI','both':'GATE + UNI'}[s.type]||'';
+    return `<div class="check-item" onclick="toggleCheck('${s.id}')">
+      <div class="chk ${done?'done':''}"></div>
+      <div class="ci-content">
+        <div class="ci-label ${done?'done':''}">${s.label}</div>
+        ${s.sub?`<div class="ci-sub">${s.sub}</div>`:''}
+        <span class="ci-type ${typeClass}">${typeLabel}</span>
+      </div>
+      <div class="ci-time">${s.time}</div>
+    </div>`;
+  }).join('');
+
+  const notes=state.dailyNotes||{};
+  document.getElementById('daily-notes').value=notes[todayKey]||'';
+}
+
+function toggleCheck(id){
+  if(!state.dailyChecks[todayKey]) state.dailyChecks[todayKey]={};
+  state.dailyChecks[todayKey][id]=!state.dailyChecks[todayKey][id];
+  const dayOfWeek=TODAY.getDay();
+  const sessions=getDailySessions(dayOfWeek);
+  const all=Object.values(state.dailyChecks[todayKey]).filter(Boolean).length;
+  if(all===sessions.length){
+    const days=state.studiedDays||[];
+    if(!days.includes(todayKey)) state.studiedDays=[...days,todayKey];
+  }
+  saveState();renderDaily();renderDashboard();
+}
+
+function saveNotes(){
+  if(!state.dailyNotes) state.dailyNotes={};
+  state.dailyNotes[todayKey]=document.getElementById('daily-notes').value;
+  saveState();
+}
+
+// ─── GATE SUBJECTS ────────────────────────────────────────────────────────────
+function renderSubjects(){
+  document.getElementById('subj-grid').innerHTML=GATE_SUBJECTS.map(s=>{
+    const d=state.subjects[s.name]||{pct:0};
+    const pct=d.pct||0;
+    const col=pct>=80?'var(--teal)':pct>=40?'var(--amber)':'var(--blue)';
+    const isActive=activeSubj===s.name;
+    return `<div class="sj ${isActive?'active':''}" onclick="selectSubj('${s.name}')">
+      <div class="sj-name">${s.name}${s.overlap?'<span class="overlap-tag" style="margin-left:4px;font-size:8px">UNI</span>':''}</div>
+      <div class="sj-marks">${s.marks} marks · ${s.month}</div>
+      <div class="pbar-wrap"><div class="pbar" style="width:${pct}%;background:${col}"></div></div>
+      <div class="sj-pct" style="color:${col}">${pct}%</div>
+    </div>`;
+  }).join('');
+
+  if(activeSubj){
+    const s=GATE_SUBJECTS.find(x=>x.name===activeSubj);
+    const d=state.subjects[activeSubj]||{pct:0,status:'not_started',notes:''};
+    document.getElementById('subj-detail-wrapper').innerHTML=`
+      <div class="subj-detail">
+        <div class="card-hdr">
+          <div class="card-title">${activeSubj}</div>
+          <span class="badge ${s.color}">${s.marks} marks</span>
+        </div>
+        ${s.overlap?`<div style="font-size:11px;color:var(--purple-light);background:var(--purple-dim);padding:6px 10px;border-radius:6px;margin-bottom:10px">University overlap — use your uni classes to reinforce this subject!</div>`:''}
+        <div class="sec" style="margin-top:0">Completion %</div>
+        <input type="range" min="0" max="100" step="5" value="${d.pct||0}" oninput="updateSubjPct(this.value)" style="margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:12px">
+          <span>0%</span>
+          <span id="sd-pct-label" style="font-weight:700;color:var(--text);font-family:'Space Mono',monospace">${d.pct||0}%</span>
+          <span>100%</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="btn-sm" onclick="setSubjStatus('not_started')">Not started</button>
+          <button class="btn-sm" onclick="setSubjStatus('in_progress')">In progress</button>
+          <button class="btn-sm" onclick="setSubjStatus('revision')">Revision</button>
+          <button class="btn-sm" onclick="setSubjStatus('done')">Done</button>
+        </div>
+        <div class="sec">Notes / weak areas</div>
+        <textarea id="sd-notes" placeholder="Topic notes, weak areas, resources..." oninput="saveSubjNotes()" style="min-height:55px">${d.notes||''}</textarea>
+      </div>`;
+  } else {
+    document.getElementById('subj-detail-wrapper').innerHTML='';
+  }
+}
+
+function selectSubj(name){
+  activeSubj=activeSubj===name?null:name;
+  renderSubjects();
+  if(activeSubj) setTimeout(()=>document.getElementById('subj-detail-wrapper').scrollIntoView({behavior:'smooth',block:'nearest'}),50);
+}
+
+function updateSubjPct(val){
+  if(!activeSubj) return;
+  if(!state.subjects[activeSubj]) state.subjects[activeSubj]={};
+  state.subjects[activeSubj].pct=parseInt(val);
+  const lbl=document.getElementById('sd-pct-label');
+  if(lbl) lbl.textContent=val+'%';
+  saveState();renderDashboard();
+}
+
+function setSubjStatus(status){
+  if(!activeSubj) return;
+  if(!state.subjects[activeSubj]) state.subjects[activeSubj]={};
+  state.subjects[activeSubj].status=status;
+  if(status==='done') state.subjects[activeSubj].pct=100;
+  if(status==='not_started') state.subjects[activeSubj].pct=0;
+  saveState();renderSubjects();renderDashboard();
+}
+
+function saveSubjNotes(){
+  if(!activeSubj) return;
+  if(!state.subjects[activeSubj]) state.subjects[activeSubj]={};
+  state.subjects[activeSubj].notes=document.getElementById('sd-notes').value;
+  saveState();
+}
+
+// ─── UNIVERSITY SUBJECTS ──────────────────────────────────────────────────────
+function renderUniSubjects(){
+  document.getElementById('uni-subj-grid').innerHTML=UNI_SUBJECTS.map(s=>{
+    const d=state.uniSubjects[s.code]||{pct:0};
+    const pct=d.pct||0;
+    const col=pct>=80?'var(--teal)':pct>=40?'var(--amber)':'var(--blue)';
+    const isActive=activeUniSubj===s.code;
+    return `<div class="uj ${isActive?'active':''}" onclick="selectUniSubj('${s.code}')">
+      <div class="uj-code">${s.code}</div>
+      <div class="uj-name">${s.name}</div>
+      <div class="uj-teacher">Prof: ${s.teacher} ${s.overlap?'· <span style="color:var(--purple-light)">GATE: '+s.overlap+'</span>':''}</div>
+      <div class="pbar-wrap"><div class="pbar" style="width:${pct}%;background:${col}"></div></div>
+      <div class="uj-pct" style="color:${col}">${pct}%</div>
+    </div>`;
+  }).join('');
+
+  if(activeUniSubj){
+    const s=UNI_SUBJECTS.find(x=>x.code===activeUniSubj);
+    const d=state.uniSubjects[activeUniSubj]||{pct:0,notes:''};
+    document.getElementById('uni-detail-wrapper').innerHTML=`
+      <div class="subj-detail" style="border-color:rgba(16,185,129,0.4)">
+        <div class="card-hdr">
+          <div class="card-title">${s.code} — ${s.name}</div>
+          <span class="badge ${s.color}">Prof: ${s.teacher}</span>
+        </div>
+        ${s.overlap?`<div style="font-size:11px;color:var(--purple-light);background:var(--purple-dim);padding:6px 10px;border-radius:6px;margin-bottom:10px">GATE overlap: ${s.overlap}</div>`:''}
+        <div class="sec" style="margin-top:0">Understanding / preparation %</div>
+        <input type="range" min="0" max="100" step="5" value="${d.pct||0}" oninput="updateUniPct(this.value)" style="margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:12px">
+          <span>0%</span>
+          <span id="ud-pct-label" style="font-weight:700;color:var(--text);font-family:'Space Mono',monospace">${d.pct||0}%</span>
+          <span>100%</span>
+        </div>
+        <div class="sec">Notes / assignment status</div>
+        <textarea id="ud-notes" placeholder="Assignment status, viva topics, weak areas..." oninput="saveUniNotes()" style="min-height:55px">${d.notes||''}</textarea>
+      </div>`;
+  } else {
+    document.getElementById('uni-detail-wrapper').innerHTML='';
+  }
+}
+
+function selectUniSubj(code){
+  activeUniSubj=activeUniSubj===code?null:code;
+  renderUniSubjects();
+  if(activeUniSubj) setTimeout(()=>document.getElementById('uni-detail-wrapper').scrollIntoView({behavior:'smooth',block:'nearest'}),50);
+}
+
+function updateUniPct(val){
+  if(!activeUniSubj) return;
+  if(!state.uniSubjects[activeUniSubj]) state.uniSubjects[activeUniSubj]={};
+  state.uniSubjects[activeUniSubj].pct=parseInt(val);
+  const lbl=document.getElementById('ud-pct-label');
+  if(lbl) lbl.textContent=val+'%';
+  saveState();
+}
+
+function saveUniNotes(){
+  if(!activeUniSubj) return;
+  if(!state.uniSubjects[activeUniSubj]) state.uniSubjects[activeUniSubj]={};
+  state.uniSubjects[activeUniSubj].notes=document.getElementById('ud-notes').value;
+  saveState();
+}
+
+function renderSubjectCodes(){
+  const el=document.getElementById('subj-code-list');
+  if(!el) return;
+  el.innerHTML=`<div class="card"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    ${SUBJ_LABS.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+      <span style="font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--blue-light)">${s.code}</span>
+      <span style="font-size:11px;color:var(--text2)">${s.lab}</span>
+    </div>`).join('')}
+  </div></div>`;
+}
+
+// ─── ERRORS ───────────────────────────────────────────────────────────────────
+function addError(){
+  const subj=document.getElementById('err-subj').value;
+  const type=document.getElementById('err-type').value;
+  const topic=document.getElementById('err-topic').value.trim();
+  const note=document.getElementById('err-note').value.trim();
+  if(!subj||!type||!topic){alert('Please fill subject, error type, and topic!');return;}
+  if(!state.errors) state.errors=[];
+  state.errors.unshift({id:Date.now(),subj,type,topic,note,date:todayKey});
+  document.getElementById('err-subj').value='';
+  document.getElementById('err-type').value='';
+  document.getElementById('err-topic').value='';
+  document.getElementById('err-note').value='';
+  saveState();renderErrors();renderDashboard();
+}
+
+function deleteError(id){
+  state.errors=(state.errors||[]).filter(e=>e.id!==id);
+  saveState();renderErrors();renderDashboard();
+}
+
+function renderErrors(){
+  const el=state.errors||[];
+  document.getElementById('err-count-lbl').textContent=`Error log (${el.length})`;
+  const list=document.getElementById('err-list');
+  if(!el.length){list.innerHTML='<div class="empty"><strong>No errors logged yet</strong>Log your first mistake to start improving!</div>';return;}
+  const tc={'Conceptual':'b-blue','Calculation':'b-amber','Silly mistake':'b-purple','Time management':'b-teal'};
+  list.innerHTML=el.map(e=>`<div class="err-item">
+    <div class="err-hdr">
+      <span class="err-subj">${e.subj}</span>
+      <span class="badge ${tc[e.type]||'b-gray'}">${e.type}</span>
+      <span class="err-date">${e.date}</span>
+      <button class="del-btn" onclick="deleteError(${e.id})">remove</button>
+    </div>
+    <div style="font-size:13px;font-weight:500;margin-bottom:${e.note?'4px':'0'}">${e.topic}</div>
+    ${e.note?`<div class="err-note">${e.note}</div>`:''}
+  </div>`).join('');
+}
+
+// ─── MOCKS ────────────────────────────────────────────────────────────────────
+function addMock(){
+  const date=document.getElementById('mock-date').value||todayKey;
+  const score=parseInt(document.getElementById('mock-score').value);
+  const series=document.getElementById('mock-series').value;
+  const notes=document.getElementById('mock-notes').value.trim();
+  if(isNaN(score)||score<0||score>100){alert('Enter a valid score between 0 and 100');return;}
+  if(!state.mocks) state.mocks=[];
+  state.mocks.unshift({id:Date.now(),date,score,series,notes});
+  document.getElementById('mock-score').value='';
+  document.getElementById('mock-notes').value='';
+  saveState();renderMocks();renderDashboard();
+}
+
+function deleteMock(id){
+  state.mocks=(state.mocks||[]).filter(m=>m.id!==id);
+  saveState();renderMocks();renderDashboard();
+}
+
+function renderMocks(){
+  const ml=state.mocks||[];
+  const sum=document.getElementById('mock-summary');
+  const wrap=document.getElementById('mock-list-wrap');
+  if(!ml.length){sum.style.display='none';wrap.style.display='none';return;}
+  sum.style.display='block';wrap.style.display='block';
+  const scores=ml.map(m=>m.score);
+  const avg=scores.reduce((a,b)=>a+b,0)/scores.length;
+  const best=Math.max(...scores);
+  const last3=scores.slice(0,3);
+  const l3avg=last3.reduce((a,b)=>a+b,0)/last3.length;
+  const pct=Math.min(100,Math.round(avg/85*100));
+  document.getElementById('mock-avg').textContent=Math.round(avg);
+  document.getElementById('mock-best').textContent=best;
+  document.getElementById('mock-count2').textContent=ml.length;
+  document.getElementById('mock-trend').textContent=Math.round(l3avg);
+  document.getElementById('mock-target-bar').style.width=pct+'%';
+  document.getElementById('mock-pct-lbl').textContent=pct+'%';
+  document.getElementById('mock-list').innerHTML=ml.map(m=>{
+    const cls=m.score>=80?'s-high':m.score>=60?'s-mid':'s-low';
+    return `<div class="mock-row">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500">${m.series}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">${m.date}${m.notes?' · '+m.notes.slice(0,55)+(m.notes.length>55?'...':''):''}</div>
+      </div>
+      <span class="score-pill ${cls}">${m.score}/100</span>
+      <button class="del-btn" onclick="deleteMock(${m.id})">remove</button>
+    </div>`;
+  }).join('');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+loadState();
+</script>
+</body>
+</html>
