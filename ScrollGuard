@@ -1,0 +1,657 @@
+ 
+// ===== FILE: settings.gradle.kts =====
+pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+rootProject.name = "BrainPalClone"
+include(":app")
+ 
+// ===== FILE: build.gradle.kts =====
+plugins {
+    id("com.android.application") version "8.5.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+    id("com.google.gms.google-services") version "4.4.2" apply false
+}
+ 
+// ===== FILE: gradle.properties =====
+org.gradle.jvmargs=-Xmx2048m
+android.useAndroidX=true
+kotlin.code.style=official
+ 
+// ===== FILE: app/build.gradle.kts =====
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+android {
+    namespace = "com.example.brainpalclone"
+    compileSdk = 34
+    defaultConfig {
+        applicationId = "com.example.brainpalclone"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+    buildFeatures { compose = true }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
+}
+dependencies {
+    val bom = platform("androidx.compose:compose-bom:2024.06.00")
+    implementation(bom)
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.activity:activity-compose:1.9.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.material3:material3")
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
+}
+ 
+// Firebase is only enabled when you add app/google-services.json (see README)
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+ 
+// ===== FILE: app/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.App">
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <service
+            android:name=".ReelAccessibilityService"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+    </application>
+</manifest>
+ 
+// ===== FILE: app/src/main/res/xml/accessibility_service_config.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeViewScrolled|typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="100"
+    android:packageNames="com.instagram.android,com.google.android.youtube,com.facebook.katana,com.snapchat.android"
+    android:description="@string/service_desc" />
+ 
+// ===== FILE: app/src/main/res/values/strings.xml =====
+<resources>
+    <string name="app_name">ScrollGuard</string>
+    <string name="service_desc">Counts reels and shorts you scroll in Instagram, YouTube, Facebook and Snapchat. Nothing leaves your device.</string>
+</resources>
+ 
+// ===== FILE: app/src/main/res/values/themes.xml =====
+<resources>
+    <style name="Theme.App" parent="android:Theme.Material.NoActionBar" />
+</resources>
+ 
+// ===== FILE: app/src/main/java/com/example/brainpalclone/CounterStore.kt =====
+package com.example.brainpalclone
+ 
+import android.content.Context
+import android.content.SharedPreferences
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+ 
+data class ReelApp(val pkg: String, val name: String, val viewIdHints: List<String>)
+ 
+val REEL_APPS = listOf(
+    ReelApp("com.instagram.android", "Instagram Reels", listOf("clips_viewer", "reels_viewer", "clips_video")),
+    ReelApp("com.google.android.youtube", "YouTube Shorts", listOf("reel_recycler", "reel_player_page_container", "shorts")),
+    ReelApp("com.facebook.katana", "Facebook Reels", listOf("reels", "reel_viewer")),
+    ReelApp("com.snapchat.android", "Snapchat Spotlight", listOf("spotlight", "reel")),
+)
+ 
+object CounterStore {
+    private lateinit var prefs: SharedPreferences
+    private val _counts = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val counts: StateFlow<Map<String, Int>> = _counts
+    private val _limit = MutableStateFlow(100)
+    val limit: StateFlow<Int> = _limit
+    private val _blockEnabled = MutableStateFlow(false)
+    val blockEnabled: StateFlow<Boolean> = _blockEnabled
+ 
+    fun todayKey(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+ 
+    fun init(ctx: Context) {
+        if (::prefs.isInitialized) return
+        prefs = ctx.applicationContext.getSharedPreferences("scrollguard", Context.MODE_PRIVATE)
+        _limit.value = prefs.getInt("limit", 100)
+        _blockEnabled.value = prefs.getBoolean("block", false)
+        refresh()
+    }
+ 
+    private fun refresh() {
+        val d = todayKey()
+        _counts.value = REEL_APPS.associate { it.pkg to prefs.getInt("$d:${it.pkg}", 0) }
+    }
+ 
+    fun increment(pkg: String) {
+        val d = todayKey()
+        prefs.edit().putInt("$d:$pkg", prefs.getInt("$d:$pkg", 0) + 1).apply()
+        refresh()
+        BattleRepo.syncToday()
+    }
+ 
+    fun total() = _counts.value.values.sum()
+ 
+    fun setLimit(v: Int) { _limit.value = v; prefs.edit().putInt("limit", v).apply() }
+    fun setBlock(v: Boolean) { _blockEnabled.value = v; prefs.edit().putBoolean("block", v).apply() }
+    fun resetToday() {
+        val d = todayKey()
+        val e = prefs.edit()
+        REEL_APPS.forEach { e.remove("$d:${it.pkg}") }
+        e.apply(); refresh(); BattleRepo.syncToday()
+    }
+}
+ 
+// ===== FILE: app/src/main/java/com/example/brainpalclone/ReelAccessibilityService.kt =====
+package com.example.brainpalclone
+ 
+import android.accessibilityservice.AccessibilityService
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Toast
+ 
+class ReelAccessibilityService : AccessibilityService() {
+ 
+    private var lastCountAt = 0L
+ 
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        CounterStore.init(this)
+        BattleRepo.init(this)
+    }
+ 
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        event ?: return
+        CounterStore.init(this)
+        val pkg = event.packageName?.toString() ?: return
+        val app = REEL_APPS.firstOrNull { it.pkg == pkg } ?: return
+ 
+        val root = rootInActiveWindow ?: return
+        if (!isReelsScreen(root, app)) return
+ 
+        // Block once the limit is reached
+        if (CounterStore.blockEnabled.value && CounterStore.total() >= CounterStore.limit.value) {
+            Toast.makeText(this, "Reel limit reached. Take a break.", Toast.LENGTH_SHORT).show()
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            return
+        }
+ 
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            val now = System.currentTimeMillis()
+            // Debounce: one swipe fires several scroll events
+            if (now - lastCountAt > 800) {
+                lastCountAt = now
+                CounterStore.increment(pkg)
+            }
+        }
+    }
+ 
+    /** Heuristic: the reels/shorts pager is on screen if any node's view id contains a known hint. */
+    private fun isReelsScreen(root: AccessibilityNodeInfo, app: ReelApp): Boolean {
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.add(root)
+        var visited = 0
+        while (stack.isNotEmpty() && visited < 400) {
+            val n = stack.removeLast()
+            visited++
+            val id = n.viewIdResourceName?.lowercase()
+            if (id != null && app.viewIdHints.any { id.contains(it) }) return true
+            for (i in 0 until n.childCount) n.getChild(i)?.let { stack.add(it) }
+        }
+        return false
+    }
+ 
+    override fun onInterrupt() {}
+}
+ 
+// ===== FILE: app/src/main/java/com/example/brainpalclone/BattleRepo.kt =====
+package com.example.brainpalclone
+ 
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldPath
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.flow.MutableStateFlow
+ 
+data class Rank(val uid: String, val name: String, val count: Int, val isMe: Boolean)
+ 
+/** Scroll Battles: anonymous sign-in, friend codes, daily leaderboard (lowest count wins). */
+object BattleRepo {
+    val available = MutableStateFlow(false)
+    val myCode = MutableStateFlow("")
+    val myName = MutableStateFlow("")
+    val board = MutableStateFlow<List<Rank>>(emptyList())
+    val message = MutableStateFlow("")
+ 
+    private var started = false
+    private var uid: String? = null
+    private var friends: List<String> = emptyList()
+    private var friendsReg: ListenerRegistration? = null
+    private var boardReg: ListenerRegistration? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val pushRunnable = Runnable { pushNow() }
+ 
+    private val db get() = FirebaseFirestore.getInstance()
+ 
+    fun init(ctx: Context) {
+        if (started) return
+        if (FirebaseApp.getApps(ctx.applicationContext).isEmpty()) return // no google-services.json
+        started = true
+        available.value = true
+        val auth = FirebaseAuth.getInstance()
+        val current = auth.currentUser
+        if (current != null) onSignedIn(current.uid)
+        else auth.signInAnonymously()
+            .addOnSuccessListener { r -> r.user?.uid?.let { onSignedIn(it) } }
+            .addOnFailureListener { message.value = "Sign-in failed: ${it.message}" }
+    }
+ 
+    private fun onSignedIn(u: String) {
+        uid = u
+        val ref = db.collection("users").document(u)
+        ref.get().addOnSuccessListener { doc ->
+            if (!doc.exists()) {
+                val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+                val code = (1..6).map { chars.random() }.joinToString("")
+                val name = "Player" + code.take(3)
+                ref.set(mapOf("name" to name, "code" to code))
+                myCode.value = code; myName.value = name
+            } else {
+                myCode.value = doc.getString("code") ?: ""
+                myName.value = doc.getString("name") ?: ""
+            }
+            listenFriends(u)
+            syncToday()
+        }.addOnFailureListener { message.value = "Could not load profile: ${it.message}" }
+    }
+ 
+    private fun listenFriends(u: String) {
+        friendsReg?.remove()
+        friendsReg = db.collection("users").document(u).collection("friends")
+            .addSnapshotListener { snap, _ ->
+                friends = snap?.documents?.map { it.id } ?: emptyList()
+                listenBoard()
+            }
+    }
+ 
+    /** Re-subscribes to today's board (also call when the app opens, to roll over at midnight). */
+    fun listenBoard() {
+        val me = uid ?: return
+        boardReg?.remove()
+        val d = CounterStore.todayKey()
+        val ids = (friends + me).distinct().take(30).map { "${d}_$it" }
+        boardReg = db.collection("daily").whereIn(FieldPath.documentId(), ids)
+            .addSnapshotListener { snap, _ ->
+                board.value = snap?.documents?.mapNotNull { doc ->
+                    val id = doc.getString("uid") ?: return@mapNotNull null
+                    Rank(id, doc.getString("name") ?: "Player", (doc.getLong("count") ?: 0L).toInt(), id == me)
+                }?.sortedBy { it.count } ?: emptyList()
+            }
+    }
+ 
+    fun syncToday() {
+        if (uid == null) return
+        handler.removeCallbacks(pushRunnable)
+        handler.postDelayed(pushRunnable, 3000) // trailing debounce
+    }
+ 
+    private fun pushNow() {
+        val u = uid ?: return
+        val d = CounterStore.todayKey()
+        db.collection("daily").document("${d}_$u").set(
+            mapOf("uid" to u, "name" to myName.value, "date" to d, "count" to CounterStore.total())
+        )
+    }
+ 
+    fun setName(name: String) {
+        val u = uid ?: return
+        val n = name.trim().take(16)
+        if (n.isEmpty()) return
+        myName.value = n
+        db.collection("users").document(u).update("name", n)
+        pushNow()
+    }
+ 
+    fun addFriend(code: String) {
+        val me = uid ?: return
+        val c = code.trim().uppercase()
+        if (c.length != 6) { message.value = "Codes are 6 characters"; return }
+        db.collection("users").whereEqualTo("code", c).limit(1).get()
+            .addOnSuccessListener { res ->
+                val f = res.documents.firstOrNull()
+                when {
+                    f == null -> message.value = "No user found with that code"
+                    f.id == me -> message.value = "That's your own code"
+                    else -> {
+                        db.collection("users").document(me).collection("friends").document(f.id).set(emptyMap<String, Any>())
+                        message.value = "Added ${f.getString("name") ?: "friend"}"
+                    }
+                }
+            }
+            .addOnFailureListener { message.value = "Error: ${it.message}" }
+    }
+}
+ 
+// ===== FILE: app/src/main/java/com/example/brainpalclone/BattleScreen.kt =====
+package com.example.brainpalclone
+ 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ 
+@Composable
+fun AppRoot() {
+    var tab by remember { mutableIntStateOf(0) }
+    Scaffold(
+        containerColor = Color(0xFF0E1116),
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(selected = tab == 0, onClick = { tab = 0 },
+                    icon = { Text("🧠") }, label = { Text("Home") })
+                NavigationBarItem(selected = tab == 1, onClick = { tab = 1 },
+                    icon = { Text("⚔️") }, label = { Text("Battles") })
+            }
+        }
+    ) { pad ->
+        Box(Modifier.padding(pad)) { if (tab == 0) HomeScreen() else BattleScreen() }
+    }
+}
+ 
+@Composable
+fun BattleScreen() {
+    val ctx = LocalContext.current
+    val available by BattleRepo.available.collectAsStateWithLifecycle()
+    val code by BattleRepo.myCode.collectAsStateWithLifecycle()
+    val name by BattleRepo.myName.collectAsStateWithLifecycle()
+    val board by BattleRepo.board.collectAsStateWithLifecycle()
+    val msg by BattleRepo.message.collectAsStateWithLifecycle()
+    var friendCode by remember { mutableStateOf("") }
+    var newName by remember(name) { mutableStateOf(name) }
+    val card = CardDefaults.cardColors(containerColor = Color(0xFF1A1F27))
+ 
+    LaunchedEffect(available) { if (available) BattleRepo.listenBoard() }
+ 
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("⚔️ Scroll Battles", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text("Lowest reel count today wins.", color = Color.Gray)
+ 
+        if (!available) {
+            Card(Modifier.fillMaxWidth(), colors = card) {
+                Text(
+                    "Battles need Firebase. Add your google-services.json to the app/ folder " +
+                        "and rebuild (steps are in README.md).",
+                    Modifier.padding(16.dp)
+                )
+            }
+            return@Column
+        }
+ 
+        Card(Modifier.fillMaxWidth(), colors = card) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Your friend code", color = Color.Gray)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(code.ifEmpty { "..." }, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = {
+                        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("code", code))
+                    }) { Text("Copy") }
+                }
+                OutlinedTextField(value = newName, onValueChange = { newName = it.take(16) },
+                    label = { Text("Display name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Button(onClick = { BattleRepo.setName(newName) }) { Text("Save name") }
+            }
+        }
+ 
+        Card(Modifier.fillMaxWidth(), colors = card) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Add a friend", fontWeight = FontWeight.Bold)
+                OutlinedTextField(value = friendCode, onValueChange = { friendCode = it.take(6).uppercase() },
+                    label = { Text("Friend's 6-character code") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Button(onClick = { BattleRepo.addFriend(friendCode); friendCode = "" }) { Text("Add") }
+                if (msg.isNotEmpty()) Text(msg, color = Color(0xFF90CAF9))
+            }
+        }
+ 
+        Card(Modifier.fillMaxWidth(), colors = card) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Today's leaderboard", fontWeight = FontWeight.Bold)
+                if (board.isEmpty()) Text("No scores yet. Scroll (or don't!) and add friends.", color = Color.Gray)
+                board.forEachIndexed { i, r ->
+                    val medal = when (i) { 0 -> "🏆"; 1 -> "🥈"; 2 -> "🥉"; else -> "${i + 1}." }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("$medal  ${r.name}${if (r.isMe) " (you)" else ""}",
+                            fontWeight = if (r.isMe) FontWeight.Bold else FontWeight.Normal)
+                        Text("${r.count}", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+ 
+// ===== FILE: app/src/main/java/com/example/brainpalclone/MainActivity.kt =====
+package com.example.brainpalclone
+ 
+import android.content.Intent
+import android.os.Bundle
+import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ 
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        CounterStore.init(this)
+        BattleRepo.init(this)
+        setContent {
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                Surface(Modifier.fillMaxSize(), color = Color(0xFF0E1116)) { AppRoot() }
+            }
+        }
+    }
+}
+ 
+private data class BrainState(val emoji: String, val label: String, val color: Color)
+ 
+private fun brainFor(count: Int) = when {
+    count < 50 -> BrainState("🧠", "Healthy", Color(0xFF4CAF50))
+    count < 100 -> BrainState("😵‍💫", "Getting foggy", Color(0xFF8BC34A))
+    count < 200 -> BrainState("💥", "Cracking", Color(0xFFFF7043))
+    else -> BrainState("💀", "Gone", Color(0xFFE53935))
+}
+ 
+@Composable
+fun HomeScreen() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val counts by CounterStore.counts.collectAsStateWithLifecycle()
+    val limit by CounterStore.limit.collectAsStateWithLifecycle()
+    val block by CounterStore.blockEnabled.collectAsStateWithLifecycle()
+    val total = counts.values.sum()
+    val brain = brainFor(total)
+    var showConsent by remember { mutableStateOf(false) }
+ 
+    if (showConsent) {
+        AlertDialog(
+            onDismissRequest = { showConsent = false },
+            title = { Text("Accessibility permission") },
+            text = {
+                Text(
+                    "ScrollGuard uses the Accessibility Service only to detect scroll events " +
+                        "inside Instagram, YouTube, Facebook and Snapchat so it can count reels. " +
+                        "It does not read messages or personal content, and all data stays on your device."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showConsent = false
+                    ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }) { Text("I agree, open settings") }
+            },
+            dismissButton = { TextButton(onClick = { showConsent = false }) { Text("Cancel") } }
+        )
+    }
+ 
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(24.dp))
+        Text("Today's scroll count", color = Color.Gray, fontSize = 14.sp)
+        Text("$total", fontSize = 72.sp, fontWeight = FontWeight.Bold, color = brain.color)
+        Text(brain.emoji, fontSize = 96.sp)
+        Text(brain.label, fontSize = 20.sp, color = brain.color, fontWeight = FontWeight.SemiBold)
+        LinearProgressIndicator(
+            progress = { (total / 200f).coerceIn(0f, 1f) },
+            color = brain.color,
+            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))
+        )
+ 
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1F27))) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("By app", fontWeight = FontWeight.Bold)
+                REEL_APPS.forEach { app ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(app.name)
+                        Text("${counts[app.pkg] ?: 0}", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+ 
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1F27))) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Block reels at limit", fontWeight = FontWeight.Bold)
+                    Switch(checked = block, onCheckedChange = { CounterStore.setBlock(it) })
+                }
+                Text("Daily limit: $limit reels", color = Color.Gray)
+                Slider(
+                    value = limit.toFloat(),
+                    onValueChange = { CounterStore.setLimit((it / 10).toInt() * 10) },
+                    valueRange = 10f..300f
+                )
+            }
+        }
+ 
+        Button(onClick = { showConsent = true }, modifier = Modifier.fillMaxWidth()) {
+            Text("Enable tracking (Accessibility)")
+        }
+        OutlinedButton(onClick = { CounterStore.resetToday() }, modifier = Modifier.fillMaxWidth()) {
+            Text("Reset today")
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+ 
+// ===== FILE: firestore.rules =====
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{u} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == u;
+      match /friends/{f} {
+        allow read, write: if request.auth != null && request.auth.uid == u;
+      }
+    }
+    match /daily/{id} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && id == request.resource.data.date + '_' + request.auth.uid;
+    }
+  }
+}
+ 
+// ===== FILE: .github/workflows/build.yml =====
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+      - run: gradle assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ScrollGuard-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+ 
